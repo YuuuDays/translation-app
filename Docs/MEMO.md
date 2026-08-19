@@ -115,10 +115,54 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 ---
 
-## 現在の実装状況(ステップ1: 音声キャプチャ確認)
+## 現在の実装状況(ステップ1・2: 音声キャプチャ + VADによる発話区切り)
 
-**入力**: なし(UI操作のみ)。「録音開始」ボタン押下時点のPC既定の再生デバイス(スピーカー/ヘッドホン出力)の音声を、WASAPIループバックでシステム全体からキャプチャする。マイク入力ではない。
+**入力**: なし(UI操作のみ)。「録音開始」ボタン押下時点のPC既定の再生デバイス(スピーカー/ヘッドホン出力)の音声を、WASAPIループバックでシステム全体からキャプチャする。マイク入力ではない。保存先フォルダは画面の「変更...」ボタンから選択可能(既定は `ドキュメント\TranslationApp\recordings`)。
 
-**出力**: `録音開始`→`録音停止`の間に鳴っていた音声を、`ドキュメント\TranslationApp\recordings\loopback_yyyyMMdd_HHmmss.wav` にWAVファイルとして保存する。画面には録音状態(待機中/録音中/停止しました/エラー)と保存先パスを表示するのみで、文字起こしや翻訳はまだ行っていない。
+**出力**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切り、区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` のような個別WAVファイルとして書き出す。画面には録音状態・検出セグメント数・直近セグメントの保存先パスを表示する。文字起こしや翻訳はまだ行っていない。
 
-まだ実装していないもの: VADによる発話区切り、STT、翻訳、UIオーバーレイ表示。
+**常時起動でもメモリが増え続けない設計**: 無音が600ms続くか、無音が来なくても1セグメントが15秒を超えたら強制的に区切ってバッファを空にする(`SilenceSegmenter`内の`SilenceCutMs`/`MaxSegmentMs`)。これにより、録音時間がどれだけ長くてもメモリ使用量は「直近1発話分」で頭打ちになる。将来STTをつなぐ段階では、区切られたセグメントをファイルに書く代わりにそのままSTTへ渡し、渡し終わったら破棄する想定(現在のファイル書き出しはセグメント化の動作検証用)。
+
+まだ実装していないもの: STT、翻訳、UIオーバーレイ表示。
+
+---
+
+## フォルダ構成の方針(C#デスクトップアプリのベストプラクティス)
+
+### 基本方針
+- リポジトリ直下は「ソリューションファイル・`.gitignore`・`Docs/`・`src/`・(将来)`tests/`」のみに留める
+- `src/`配下に実際の`.csproj`プロジェクトを置き、ドキュメントと分離する
+- UIとロジックは、たとえ1プロジェクトでも**フォルダ単位で分離**しておく。今すぐ複数プロジェクトに分けなくても、フォルダを切っておけば将来の分割は「ファイル移動」で済む
+- 1ファイル1クラス、ファイル名=クラス名、namespaceはフォルダ構造と一致させる
+
+### 現在(単一プロジェクト)の構成
+```
+src/TranslationApp/
+├── App.xaml / App.xaml.cs
+├── Views/              — 画面(xaml)。MainWindow.xaml/.xaml.csはUIの取りまとめ役に徹する
+│   ├── MainWindow.xaml
+│   └── MainWindow.xaml.cs
+├── Audio/               — NAudioキャプチャ・VADなどの音声処理ロジック(UIに依存しない)
+│   ├── LoopbackRecorder.cs   — WASAPIループバック録音のラッパー
+│   └── SilenceSegmenter.cs   — 無音検出による発話単位への区切り
+├── Models/              — データの入れ物
+│   └── AudioSegment.cs
+└── TranslationApp.csproj
+```
+`MainWindow.xaml.cs`に音声処理ロジックを全部書き込むとUIコードと混ざって後で切り出しにくくなるため、`Audio/`のクラスに分離。`MainWindow`はイベントの配線とファイルI/O・UI更新のみを担当する。
+
+### 将来(ロードマップ⑤: インターフェース抽象化後)の構成
+動くものができてから初めて `ISttProvider` / `ITranslator` を導入するタイミングで、以下のようにプロジェクトを分割する想定:
+
+```
+src/
+├── TranslationApp/                    — WPF UI(Viewと起動時のDI登録のみ)
+├── TranslationApp.Core/               — ISttProvider/ITranslator、パイプライン、Models(UI/NAudioに非依存)
+├── TranslationApp.Stt.Azure/          — Azure Speech実装
+├── TranslationApp.Stt.Whisper/        — faster-whisper実装
+├── TranslationApp.Translation.DeepL/
+└── TranslationApp.Translation.Ollama/
+tests/
+└── TranslationApp.Core.Tests/         — Core配下ロジックの単体テスト
+```
+Coreを何にも依存させないことで、UIなしでロジック単体をテストでき、STT/翻訳の実装ごとに依存パッケージ(Azure SDK、Ollamaクライアント等)を分離できる。
