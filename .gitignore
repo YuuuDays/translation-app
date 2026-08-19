@@ -1,0 +1,72 @@
+## .NET / Visual Studio
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+[Dd]ebug/
+[Dd]ebugPublic/
+[Rr]elease/
+[Rr]eleases/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+[Ww][Ii][Nn]32/
+build/
+bld/
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+msbuild.log
+msbuild.err
+msbuild.wrn
+
+## NuGet
+*.nupkg
+*.snupkg
+**/[Pp]ackages/*
+!**/[Pp]ackages/build/
+.nuget/
+
+## Rider / ReSharper
+.idea/
+*.DotSettings.user
+
+## Python (faster-whisper / ローカルLLM関連スクリプト用)
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+## 秘密情報・APIキー・設定
+*.env
+.env.*
+appsettings.*.json
+!appsettings.json
+secrets.json
+**/secrets/
+
+## モデル・音声・ログなどの生成物
+*.log
+*.wav
+*.mp3
+models/
+*.bin
+*.onnx
+*.pt
+*.gguf
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## エディタ
+.vscode/
+*.swp
+*.swo
