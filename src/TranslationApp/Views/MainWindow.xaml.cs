@@ -117,7 +117,8 @@ public partial class MainWindow : Window
     }
 
     // セグメントが確定するたびに、WAVファイルとして書き出してからfaster-whisperに渡して文字起こしする。
-    // 将来的には(検証目的の)ファイル書き出しをやめ、segment.Dataを直接渡す形に置き換える想定。
+    // 文字起こし後はファイルを削除するので、保存先フォルダにはエラー時のセグメントだけが残る。
+    // 将来的には(検証目的の)ファイル書き出し自体をやめ、segment.Dataを直接渡す形に置き換える想定。
     private async void Segmenter_SegmentReady(AudioSegment segment)
     {
         var segmentDir = Path.Combine(_outputDir, "segments");
@@ -132,15 +133,31 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、文字起こし中...)");
 
         string englishText;
+        var transcribed = false;
         try
         {
             englishText = _whisper is null
                 ? "(faster-whisperが利用できません)"
                 : await _whisper.TranscribeAsync(segmentPath);
+            transcribed = true;
         }
         catch (Exception ex)
         {
             englishText = $"(文字起こし失敗: {ex.Message})";
+        }
+
+        // 文字起こしが終わればWAVファイルの役目は終わりなので削除する(失敗時は原因調査用に残す)。
+        // そうしないとセグメントを重ねるたびにファイルが際限なく溜まってしまう。
+        if (transcribed)
+        {
+            try
+            {
+                File.Delete(segmentPath);
+            }
+            catch (IOException)
+            {
+                // 削除できなくても致命的ではないので無視する。
+            }
         }
 
         Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、翻訳中...)");
