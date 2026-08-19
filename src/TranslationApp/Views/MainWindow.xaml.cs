@@ -5,6 +5,7 @@ using NAudio.CoreAudioApi;
 using NAudio.Wave;
 using TranslationApp.Audio;
 using TranslationApp.Models;
+using TranslationApp.Stt;
 
 namespace TranslationApp.Views;
 
@@ -12,6 +13,7 @@ public partial class MainWindow : Window
 {
     private readonly LoopbackRecorder _recorder = new();
     private readonly SilenceSegmenter _segmenter = new();
+    private FasterWhisperClient? _whisper;
 
     private string _outputDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -25,7 +27,32 @@ public partial class MainWindow : Window
         _recorder.DataAvailable += Recorder_DataAvailable;
         _recorder.RecordingStopped += Recorder_RecordingStopped;
         _segmenter.SegmentReady += Segmenter_SegmentReady;
-        Closed += (_, _) => _recorder.Dispose();
+        Closed += async (_, _) =>
+        {
+            _recorder.Dispose();
+            if (_whisper is not null)
+            {
+                await _whisper.DisposeAsync();
+            }
+        };
+
+        Loaded += MainWindow_Loaded;
+    }
+
+    private async void MainWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            // faster-whisperはモデル読み込みに数秒〜十数秒かかるため、常駐プロセスとして
+            // 起動しておき、録音セグメントが来るたびに使い回す(セグメントごとに立ち上げ直さない)。
+            _whisper = await FasterWhisperClient.StartAsync(modelSize: "small", device: "cpu", computeType: "int8");
+            StatusText.Text = "待機中";
+            StartButton.IsEnabled = true;
+        }
+        catch (Exception ex)
+        {
+            StatusText.Text = $"faster-whisperの起動に失敗しました: {ex.Message}";
+        }
     }
 
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -46,13 +73,13 @@ public partial class MainWindow : Window
     private void StartButton_Click(object sender, RoutedEventArgs e)
     {
         _segmenter.Reset();
+        TranscriptList.Items.Clear();
 
         try
         {
             _recorder.Start();
 
             StatusText.Text = "録音中... (セグメント 0 件検出)";
-            FilePathText.Text = "-";
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = true;
         }
@@ -86,10 +113,9 @@ public partial class MainWindow : Window
         });
     }
 
-    // 現時点では検証のためセグメントをWAVファイルに書き出しているだけだが、将来STTをつなぐ段階では、
-    // ここでファイルに書く代わりにsegment.DataをそのままSTTへ渡す形に置き換える想定
-    // (ディスクにもメモリにも溜め続けない)。
-    private void Segmenter_SegmentReady(AudioSegment segment)
+    // セグメントが確定するたびに、WAVファイルとして書き出してからfaster-whisperに渡して文字起こしする。
+    // 将来的には(検証目的の)ファイル書き出しをやめ、segment.Dataを直接渡す形に置き換える想定。
+    private async void Segmenter_SegmentReady(AudioSegment segment)
     {
         var segmentDir = Path.Combine(_outputDir, "segments");
         Directory.CreateDirectory(segmentDir);
@@ -100,10 +126,24 @@ public partial class MainWindow : Window
             writer.Write(segment.Data);
         }
 
+        Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、文字起こし中...)");
+
+        string resultText;
+        try
+        {
+            resultText = _whisper is null
+                ? "(faster-whisperが利用できません)"
+                : await _whisper.TranscribeAsync(segmentPath);
+        }
+        catch (Exception ex)
+        {
+            resultText = $"(文字起こし失敗: {ex.Message})";
+        }
+
         Dispatcher.Invoke(() =>
         {
             StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出)";
-            FilePathText.Text = segmentPath;
+            TranscriptList.Items.Add($"[{segment.Number:0000}] {resultText}");
         });
     }
 }

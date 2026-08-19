@@ -5,22 +5,33 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TranslationApp.Views"
         mc:Ignorable="d"
-        Title="Translation App - Loopback Capture Test" Height="280" Width="500">
-    <StackPanel Margin="20" VerticalAlignment="Center">
-        <TextBlock x:Name="StatusText" Text="待機中" FontSize="16" Margin="0,0,0,10"/>
+        Title="Translation App - STT Test" Height="500" Width="560">
+    <Grid Margin="20">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
 
-        <TextBlock Text="保存先フォルダ:" FontWeight="Bold"/>
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-            <TextBox x:Name="OutputDirText" Width="330" IsReadOnly="True" Margin="0,0,10,0"/>
-            <Button x:Name="BrowseButton" Content="変更..." Width="60" Click="BrowseButton_Click"/>
+        <TextBlock Grid.Row="0" x:Name="StatusText" Text="Whisperモデルを読み込み中..." FontSize="16" Margin="0,0,0,10"/>
+
+        <StackPanel Grid.Row="1" Margin="0,0,0,10">
+            <TextBlock Text="保存先フォルダ:" FontWeight="Bold"/>
+            <StackPanel Orientation="Horizontal">
+                <TextBox x:Name="OutputDirText" Width="330" IsReadOnly="True" Margin="0,0,10,0"/>
+                <Button x:Name="BrowseButton" Content="変更..." Width="60" Click="BrowseButton_Click"/>
+            </StackPanel>
         </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-            <Button x:Name="StartButton" Content="録音開始" Width="100" Height="30" Margin="0,0,10,0" Click="StartButton_Click"/>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+            <Button x:Name="StartButton" Content="録音開始" Width="100" Height="30" Margin="0,0,10,0" IsEnabled="False" Click="StartButton_Click"/>
             <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" IsEnabled="False" Click="StopButton_Click"/>
         </StackPanel>
 
-        <TextBlock Text="直近のセグメント:" FontWeight="Bold"/>
-        <TextBlock x:Name="FilePathText" TextWrapping="Wrap" Text="-"/>
-    </StackPanel>
+        <TextBlock Grid.Row="3" Text="文字起こし結果(英語):" FontWeight="Bold" Margin="0,0,0,5"/>
+
+        <ListBox Grid.Row="4" x:Name="TranscriptList" FontSize="14"/>
+    </Grid>
 </Window>

@@ -107,23 +107,35 @@ WPFで字幕のようにオーバーレイ表示。技術的難易度は他工�
 
 ## 起動方法
 
+初回のみ、faster-whisperサーバー用のPython仮想環境を作る:
+```
+python -m venv tools/whisper-server/.venv
+tools/whisper-server/.venv/Scripts/pip install -r tools/whisper-server/requirements.txt
+```
+(初回の文字起こし実行時、Hugging Faceからモデルが自動ダウンロードされるためネット接続が必要。2回目以降はローカルにキャッシュされるので無料でオフライン動作する)
+
+アプリの起動:
 ```
 dotnet run --project src/TranslationApp/TranslationApp.csproj
 ```
 
-または `TranslationApp.slnx` をVisual Studioで開いて実行(F5)。
+または `TranslationApp.slnx` をVisual Studioで開いて実行(F5)。起動時にfaster-whisperサーバー(Pythonプロセス)を裏で立ち上げてモデルを読み込むため、「録音開始」ボタンは読み込み完了まで無効化される。
 
 ---
 
-## 現在の実装状況(ステップ1・2: 音声キャプチャ + VADによる発話区切り)
+## 現在の実装状況(ステップ1〜3: 音声キャプチャ + VAD区切り + STT)
 
 **入力**: なし(UI操作のみ)。「録音開始」ボタン押下時点のPC既定の再生デバイス(スピーカー/ヘッドホン出力)の音声を、WASAPIループバックでシステム全体からキャプチャする。マイク入力ではない。保存先フォルダは画面の「変更...」ボタンから選択可能(既定は `ドキュメント\TranslationApp\recordings`)。
 
-**出力**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切り、区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` のような個別WAVファイルとして書き出す。画面には録音状態・検出セグメント数・直近セグメントの保存先パスを表示する。文字起こしや翻訳はまだ行っていない。
+**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して英語の文字起こしを行う。
 
-**常時起動でもメモリが増え続けない設計**: 無音が600ms続くか、無音が来なくても1セグメントが15秒を超えたら強制的に区切ってバッファを空にする(`SilenceSegmenter`内の`SilenceCutMs`/`MaxSegmentMs`)。これにより、録音時間がどれだけ長くてもメモリ使用量は「直近1発話分」で頭打ちになる。将来STTをつなぐ段階では、区切られたセグメントをファイルに書く代わりにそのままSTTへ渡し、渡し終わったら破棄する想定(現在のファイル書き出しはセグメント化の動作検証用)。
+**出力**: 画面に録音状態・検出セグメント数、そして各セグメントの文字起こし結果を一覧表示する。翻訳・UIオーバーレイ表示はまだ行っていない。
 
-まだ実装していないもの: STT、翻訳、UIオーバーレイ表示。
+**faster-whisperの動かし方**: モデルの読み込みに数秒〜十数秒かかるため、毎セグメントごとにプロセスを立ち上げ直すのではなく、アプリ起動時に常駐プロセス(`tools/whisper-server/server.py`)として立ち上げ、標準入出力でWAVファイルパスと結果(JSON)をやり取りする方式にしている。モデルサイズ・デバイス(cpu/cuda)・compute_typeは`MainWindow_Loaded`内の`FasterWhisperClient.StartAsync`呼び出しで指定しており、現状はCPU向けの`small`モデルで動作検証済み。GPU(RTX 4060, VRAM 8GB)があるため、精度を上げたい場合は`large-v3`+`device: "cuda"`への切り替えが次の調整候補(cuDNN/cuBLAS関連の追加パッケージが必要になる可能性がある)。
+
+**常時起動でもメモリが増え続けない設計**: 無音が600ms続くか、無音が来なくても1セグメントが15秒を超えたら強制的に区切ってバッファを空にする(`SilenceSegmenter`内の`SilenceCutMs`/`MaxSegmentMs`)。これにより、録音時間がどれだけ長くてもメモリ使用量は「直近1発話分」で頭打ちになる。
+
+まだ実装していないもの: 翻訳、UIオーバーレイ表示、`ISttProvider`による抽象化(現時点ではfaster-whisper決め打ち)。
 
 ---
 
@@ -137,19 +149,28 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 ### 現在(単一プロジェクト)の構成
 ```
-src/TranslationApp/
-├── App.xaml / App.xaml.cs
-├── Views/              — 画面(xaml)。MainWindow.xaml/.xaml.csはUIの取りまとめ役に徹する
-│   ├── MainWindow.xaml
-│   └── MainWindow.xaml.cs
-├── Audio/               — NAudioキャプチャ・VADなどの音声処理ロジック(UIに依存しない)
-│   ├── LoopbackRecorder.cs   — WASAPIループバック録音のラッパー
-│   └── SilenceSegmenter.cs   — 無音検出による発話単位への区切り
-├── Models/              — データの入れ物
-│   └── AudioSegment.cs
-└── TranslationApp.csproj
+translation-app/
+├── src/TranslationApp/
+│   ├── App.xaml / App.xaml.cs
+│   ├── Views/              — 画面(xaml)。MainWindow.xaml/.xaml.csはUIの取りまとめ役に徹する
+│   │   ├── MainWindow.xaml
+│   │   └── MainWindow.xaml.cs
+│   ├── Audio/               — NAudioキャプチャ・VADなどの音声処理ロジック(UIに依存しない)
+│   │   ├── LoopbackRecorder.cs   — WASAPIループバック録音のラッパー
+│   │   └── SilenceSegmenter.cs   — 無音検出による発話単位への区切り
+│   ├── Stt/                 — STT(音声認識)まわり
+│   │   ├── FasterWhisperClient.cs — faster-whisperサーバー(Pythonプロセス)とのやり取り
+│   │   └── ScriptLocator.cs       — tools/配下のPythonスクリプトの場所を解決
+│   ├── Models/              — データの入れ物
+│   │   └── AudioSegment.cs
+│   └── TranslationApp.csproj
+└── tools/
+    └── whisper-server/      — C#プロジェクトの外にあるPython製の補助プロセス
+        ├── server.py            — faster-whisperを常駐させ標準入出力でやり取りするサーバー
+        ├── requirements.txt
+        └── .venv/               — (.gitignore対象、コミットしない)
 ```
-`MainWindow.xaml.cs`に音声処理ロジックを全部書き込むとUIコードと混ざって後で切り出しにくくなるため、`Audio/`のクラスに分離。`MainWindow`はイベントの配線とファイルI/O・UI更新のみを担当する。
+`MainWindow.xaml.cs`に音声処理ロジックを全部書き込むとUIコードと混ざって後で切り出しにくくなるため、`Audio/`のクラスに分離。`MainWindow`はイベントの配線とファイルI/O・UI更新のみを担当する。STTはC#では完結せずPythonプロセス(faster-whisper)に頼る形になるため、`.csproj`配下ではなくリポジトリ直下の`tools/`に置き、C#側からは`Stt/`配下のクラス経由でプロセスとして呼び出す。
 
 ### 将来(ロードマップ⑤: インターフェース抽象化後)の構成
 動くものができてから初めて `ISttProvider` / `ITranslator` を導入するタイミングで、以下のようにプロジェクトを分割する想定:
