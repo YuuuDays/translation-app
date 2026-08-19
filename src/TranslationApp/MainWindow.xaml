@@ -5,16 +5,22 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TranslationApp"
         mc:Ignorable="d"
-        Title="Translation App - Loopback Capture Test" Height="250" Width="500">
+        Title="Translation App - Loopback Capture Test" Height="280" Width="500">
     <StackPanel Margin="20" VerticalAlignment="Center">
         <TextBlock x:Name="StatusText" Text="待機中" FontSize="16" Margin="0,0,0,10"/>
+
+        <TextBlock Text="保存先フォルダ:" FontWeight="Bold"/>
+        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+            <TextBox x:Name="OutputDirText" Width="330" IsReadOnly="True" Margin="0,0,10,0"/>
+            <Button x:Name="BrowseButton" Content="変更..." Width="60" Click="BrowseButton_Click"/>
+        </StackPanel>
 
         <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="StartButton" Content="録音開始" Width="100" Height="30" Margin="0,0,10,0" Click="StartButton_Click"/>
             <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" IsEnabled="False" Click="StopButton_Click"/>
         </StackPanel>
 
-        <TextBlock Text="保存先:" FontWeight="Bold"/>
+        <TextBlock Text="直近の保存ファイル:" FontWeight="Bold"/>
         <TextBlock x:Name="FilePathText" TextWrapping="Wrap" Text="-"/>
     </StackPanel>
 </Window>
