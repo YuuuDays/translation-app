@@ -6,6 +6,7 @@ using NAudio.Wave;
 using TranslationApp.Audio;
 using TranslationApp.Models;
 using TranslationApp.Stt;
+using TranslationApp.Translation;
 
 namespace TranslationApp.Views;
 
@@ -13,6 +14,7 @@ public partial class MainWindow : Window
 {
     private readonly LoopbackRecorder _recorder = new();
     private readonly SilenceSegmenter _segmenter = new();
+    private readonly OllamaTranslator _translator = new();
     private FasterWhisperClient? _whisper;
 
     private string _outputDir = Path.Combine(
@@ -30,6 +32,7 @@ public partial class MainWindow : Window
         Closed += async (_, _) =>
         {
             _recorder.Dispose();
+            _translator.Dispose();
             if (_whisper is not null)
             {
                 await _whisper.DisposeAsync();
@@ -128,22 +131,35 @@ public partial class MainWindow : Window
 
         Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、文字起こし中...)");
 
-        string resultText;
+        string englishText;
         try
         {
-            resultText = _whisper is null
+            englishText = _whisper is null
                 ? "(faster-whisperが利用できません)"
                 : await _whisper.TranscribeAsync(segmentPath);
         }
         catch (Exception ex)
         {
-            resultText = $"(文字起こし失敗: {ex.Message})";
+            englishText = $"(文字起こし失敗: {ex.Message})";
+        }
+
+        Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、翻訳中...)");
+
+        string japaneseText;
+        try
+        {
+            japaneseText = await _translator.TranslateToJapaneseAsync(englishText);
+        }
+        catch (Exception ex)
+        {
+            japaneseText = $"(翻訳失敗: {ex.Message})";
         }
 
         Dispatcher.Invoke(() =>
         {
             StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出)";
-            TranscriptList.Items.Add($"[{segment.Number:0000}] {resultText}");
+            TranscriptList.Items.Add($"[{segment.Number:0000}] EN: {englishText}");
+            TranscriptList.Items.Add($"       JA: {japaneseText}");
         });
     }
 }

@@ -30,7 +30,7 @@
             <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" IsEnabled="False" Click="StopButton_Click"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="3" Text="文字起こし結果(英語):" FontWeight="Bold" Margin="0,0,0,5"/>
+        <TextBlock Grid.Row="3" Text="文字起こし・翻訳結果:" FontWeight="Bold" Margin="0,0,0,5"/>
 
         <ListBox Grid.Row="4" x:Name="TranscriptList" FontSize="14"/>
     </Grid>
