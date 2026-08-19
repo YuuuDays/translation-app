@@ -20,7 +20,7 @@
             <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" IsEnabled="False" Click="StopButton_Click"/>
         </StackPanel>
 
-        <TextBlock Text="直近の保存ファイル:" FontWeight="Bold"/>
+        <TextBlock Text="直近のセグメント:" FontWeight="Bold"/>
         <TextBlock x:Name="FilePathText" TextWrapping="Wrap" Text="-"/>
     </StackPanel>
 </Window>
