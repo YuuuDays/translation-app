@@ -158,8 +158,9 @@ public partial class MainWindow : Window
         Dispatcher.Invoke(() =>
         {
             StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出)";
-            TranscriptList.Items.Add($"[{segment.Number:0000}] EN: {englishText}");
-            TranscriptList.Items.Add($"       JA: {japaneseText}");
+
+            var index = TranscriptList.Items.Add($"[{segment.Number:0000}]\nEN: {englishText}\nJP: {japaneseText}");
+            TranscriptList.ScrollIntoView(TranscriptList.Items[index]);
         });
     }
 }

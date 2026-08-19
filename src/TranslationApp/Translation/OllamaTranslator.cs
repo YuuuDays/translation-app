@@ -11,6 +11,11 @@ namespace TranslationApp.Translation;
 /// </summary>
 public sealed class OllamaTranslator : IDisposable
 {
+    // temperatureが既定(0.8)のままだと、特に短い/曖昧な文で出力が安定せず、
+    // 中国語が混ざったり無関係な多言語混在になったりすることがあったため、
+    // 「創造性より忠実さ」を優先してほぼ決定的な出力になるよう下げている。
+    private const double Temperature = 0.1;
+
     private readonly HttpClient _httpClient;
     private readonly string _model;
 
@@ -27,13 +32,19 @@ public sealed class OllamaTranslator : IDisposable
             return string.Empty;
         }
 
-        // 出力を「翻訳文だけ」に絞るため、説明や前置きを付けないようプロンプトで明示的に指示する。
+        // 出力を「翻訳文だけ」に絞り、かつ中国語への混同(qwen系モデルで時々発生)を防ぐため
+        // 言語を名指しで縛っている。
         var prompt =
-            "Translate the following English text into natural, fluent Japanese. " +
-            "Output only the Japanese translation, with no explanation and no quotation marks.\n\n" +
+            "You are a professional English-to-Japanese translator.\n" +
+            "Translate the following English text into natural, fluent Japanese.\n" +
+            "Rules:\n" +
+            "- Output Japanese only. Never output Chinese characters or any other language.\n" +
+            "- Output ONLY the translation itself: no explanations, no romanization, no quotation marks.\n" +
+            "- If the input is a short or ambiguous fragment, translate it as naturally as possible without adding meaning that isn't there.\n\n" +
             $"English: {englishText}\nJapanese:";
 
-        var requestJson = JsonSerializer.Serialize(new OllamaGenerateRequest(_model, prompt, Stream: false));
+        var request = new OllamaGenerateRequest(_model, prompt, Stream: false, new OllamaOptions(Temperature));
+        var requestJson = JsonSerializer.Serialize(request);
         using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
         // stream: falseにしているので、Ollamaは生成完了まで待ってから1つのJSONで返す。
@@ -50,7 +61,11 @@ public sealed class OllamaTranslator : IDisposable
     private sealed record OllamaGenerateRequest(
         [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("prompt")] string Prompt,
-        [property: JsonPropertyName("stream")] bool Stream);
+        [property: JsonPropertyName("stream")] bool Stream,
+        [property: JsonPropertyName("options")] OllamaOptions Options);
+
+    private sealed record OllamaOptions(
+        [property: JsonPropertyName("temperature")] double Temperature);
 
     private sealed record OllamaGenerateResponse(
         [property: JsonPropertyName("response")] string? Response);
