@@ -116,7 +116,7 @@ tools/whisper-server/.venv/Scripts/pip install -r tools/whisper-server/requireme
 
 初回のみ、翻訳用にOllamaとモデルを用意する(winget等でインストール後):
 ```
-ollama pull qwen2.5:7b
+ollama pull gemma2:9b
 ```
 Ollamaはインストールすると既定でバックグラウンドサービスとして常駐し、`http://localhost:11434` でHTTP APIを待ち受ける。アプリ側は起動しているOllamaにHTTPで問い合わせるだけなので、Ollama自体は事前に起動しておく必要がある(通常はサービスとして自動起動する)。
 
@@ -133,13 +133,15 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 **入力**: なし(UI操作のみ)。「録音開始」ボタン押下時点のPC既定の再生デバイス(スピーカー/ヘッドホン出力)の音声を、WASAPIループバックでシステム全体からキャプチャする。マイク入力ではない。保存先フォルダは画面の「変更...」ボタンから選択可能(既定は `ドキュメント\TranslationApp\recordings`)。
 
-**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して英語の文字起こしを行い、得られた英語テキストをOllama(`OllamaTranslator`、既定モデル`qwen2.5:7b`)に渡して日本語に翻訳する。これで「聞く→文字にする→訳す」の一本の流れが完成した。
+**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して英語の文字起こしを行い、得られた英語テキストをOllama(`OllamaTranslator`、既定モデル`gemma2:9b`)に渡して日本語に翻訳する。これで「聞く→文字にする→訳す」の一本の流れが完成した。
 
 **出力**: 画面に録音状態・検出セグメント数、そして各セグメントの英語文字起こしと日本語訳を一覧表示する。UIオーバーレイ表示(字幕のような常時最前面表示)はまだ行っていない。
 
 **faster-whisperの動かし方**: モデルの読み込みに数秒〜十数秒かかるため、毎セグメントごとにプロセスを立ち上げ直すのではなく、アプリ起動時に常駐プロセス(`tools/whisper-server/server.py`)として立ち上げ、標準入出力でWAVファイルパスと結果(JSON)をやり取りする方式にしている。モデルサイズ・デバイス(cpu/cuda)・compute_typeは`MainWindow_Loaded`内の`FasterWhisperClient.StartAsync`呼び出しで指定しており、現状はCPU向けの`small`モデルで動作検証済み。GPU(RTX 4060, VRAM 8GB)があるため、精度を上げたい場合は`large-v3`+`device: "cuda"`への切り替えが次の調整候補(cuDNN/cuBLAS関連の追加パッケージが必要になる可能性がある)。
 
-**Ollamaの動かし方**: Ollamaは常駐サービスとして`http://localhost:11434`でHTTP APIを待ち受けているので、`OllamaTranslator`はそこへ`/api/generate`をPOSTするだけ(faster-whisperのようなプロセス管理は不要)。プロンプトで「翻訳文だけを出力する」よう指示している。モデルは`qwen2.5:7b`を既定にしている(多言語対応が比較的強いため)が、`OllamaTranslator`のコンストラクタ引数で差し替え可能。
+**Ollamaの動かし方**: Ollamaは常駐サービスとして`http://localhost:11434`でHTTP APIを待ち受けているので、`OllamaTranslator`はそこへ`/api/generate`をPOSTするだけ(faster-whisperのようなプロセス管理は不要)。プロンプトで「日本語のみ・中国語厳禁・翻訳文だけを出力する」よう指示し、`temperature`も0.1まで下げて出力のブレを抑えている。
+
+モデルは最初`qwen2.5:7b`を使っていたが、"I know."のような短い定型フレーズで中国語(`我知道。`)が混ざる問題が実測で確認されたため、`gemma2:9b`に切り替えた(同じテストフレーズで中国語混入なし、自然な日本語を確認)。`OllamaTranslator`のコンストラクタ引数でモデルは差し替え可能。
 
 **常時起動でもメモリが増え続けない設計**: 無音が600ms続くか、無音が来なくても1セグメントが15秒を超えたら強制的に区切ってバッファを空にする(`SilenceSegmenter`内の`SilenceCutMs`/`MaxSegmentMs`)。これにより、録音時間がどれだけ長くてもメモリ使用量は「直近1発話分」で頭打ちになる。
 

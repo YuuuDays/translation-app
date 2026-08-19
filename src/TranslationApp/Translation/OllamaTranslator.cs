@@ -19,7 +19,7 @@ public sealed class OllamaTranslator : IDisposable
     private readonly HttpClient _httpClient;
     private readonly string _model;
 
-    public OllamaTranslator(string model = "qwen2.5:7b", string endpoint = "http://localhost:11434")
+    public OllamaTranslator(string model = "gemma2:9b", string endpoint = "http://localhost:11434")
     {
         _model = model;
         _httpClient = new HttpClient { BaseAddress = new Uri(endpoint) };
