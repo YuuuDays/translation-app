@@ -55,7 +55,6 @@ secrets.json
 *.log
 *.wav
 *.mp3
-models/
 *.bin
 *.onnx
 *.pt

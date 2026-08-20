@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
+using TranslationApp.Models;
 
 namespace TranslationApp.Stt;
 
@@ -55,7 +56,7 @@ public sealed class FasterWhisperClient : IAsyncDisposable
         return new FasterWhisperClient(process);
     }
 
-    public async Task<string> TranscribeAsync(string wavFilePath)
+    public async Task<TranscriptionResult> TranscribeAsync(string wavFilePath)
     {
         // Pythonプロセスは1リクエストずつ順番に処理する常駐サーバーなので、
         // 複数セグメントが同時に来ても呼び出しをここで直列化する。
@@ -74,7 +75,9 @@ public sealed class FasterWhisperClient : IAsyncDisposable
                 throw new InvalidOperationException($"文字起こしに失敗しました: {errorProperty.GetString()}");
             }
 
-            return document.RootElement.GetProperty("text").GetString() ?? string.Empty;
+            var text = document.RootElement.GetProperty("text").GetString() ?? string.Empty;
+            var language = document.RootElement.GetProperty("language").GetString() ?? "unknown";
+            return new TranscriptionResult(text, language);
         }
         finally
         {

@@ -7,7 +7,7 @@ namespace TranslationApp.Translation;
 
 /// <summary>
 /// ローカルで動くOllama(既定ではhttp://localhost:11434)にHTTPでプロンプトを投げ、
-/// 英語のテキストを日本語に翻訳する。クラウドAPIを使わないため無料・オフラインで動く。
+/// 検出された言語のテキストを日本語に翻訳する。クラウドAPIを使わないため無料・オフラインで動く。
 /// </summary>
 public sealed class OllamaTranslator : IDisposable
 {
@@ -15,6 +15,18 @@ public sealed class OllamaTranslator : IDisposable
     // 中国語が混ざったり無関係な多言語混在になったりすることがあったため、
     // 「創造性より忠実さ」を優先してほぼ決定的な出力になるよう下げている。
     private const double Temperature = 0.1;
+
+    // faster-whisperが返すISO 639-1言語コードを、プロンプトで使う英語の言語名に変換する。
+    // 一覧に無い言語コードはそのままプロンプトに埋め込む(モデルが認識できる可能性が高いため)。
+    private static readonly Dictionary<string, string> LanguageNames = new()
+    {
+        ["en"] = "English",
+        ["ko"] = "Korean",
+        ["zh"] = "Chinese",
+        ["es"] = "Spanish",
+        ["fr"] = "French",
+        ["de"] = "German",
+    };
 
     private readonly HttpClient _httpClient;
     private readonly string _model;
@@ -25,23 +37,32 @@ public sealed class OllamaTranslator : IDisposable
         _httpClient = new HttpClient { BaseAddress = new Uri(endpoint) };
     }
 
-    public async Task<string> TranslateToJapaneseAsync(string englishText)
+    /// <summary>sourceLanguageはfaster-whisperが返すISO 639-1言語コード(例: "en","ko")。</summary>
+    public async Task<string> TranslateToJapaneseAsync(string sourceText, string sourceLanguage)
     {
-        if (string.IsNullOrWhiteSpace(englishText))
+        if (string.IsNullOrWhiteSpace(sourceText))
         {
             return string.Empty;
         }
 
+        // 既に日本語ならOllamaを呼ぶまでもない。
+        if (sourceLanguage == "ja")
+        {
+            return sourceText;
+        }
+
+        var languageName = LanguageNames.GetValueOrDefault(sourceLanguage, sourceLanguage);
+
         // 出力を「翻訳文だけ」に絞り、かつ中国語への混同(qwen系モデルで時々発生)を防ぐため
         // 言語を名指しで縛っている。
         var prompt =
-            "You are a professional English-to-Japanese translator.\n" +
-            "Translate the following English text into natural, fluent Japanese.\n" +
+            $"You are a professional translator specializing in {languageName}-to-Japanese translation.\n" +
+            $"Translate the following {languageName} text into natural, fluent Japanese.\n" +
             "Rules:\n" +
             "- Output Japanese only. Never output Chinese characters or any other language.\n" +
             "- Output ONLY the translation itself: no explanations, no romanization, no quotation marks.\n" +
             "- If the input is a short or ambiguous fragment, translate it as naturally as possible without adding meaning that isn't there.\n\n" +
-            $"English: {englishText}\nJapanese:";
+            $"{languageName}: {sourceText}\nJapanese:";
 
         var request = new OllamaGenerateRequest(_model, prompt, Stream: false, new OllamaOptions(Temperature));
         var requestJson = JsonSerializer.Serialize(request);

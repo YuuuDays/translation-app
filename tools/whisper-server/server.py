@@ -34,9 +34,11 @@ def main() -> None:
             continue
 
         try:
-            segments, _info = model.transcribe(wav_path, language="en")
+            # language指定なし = 自動言語検出。英語決め打ちだと、英語以外(韓国語など)の
+            # 音声も無理やり英語として認識しようとして精度が大きく落ちるため。
+            segments, info = model.transcribe(wav_path)
             text = "".join(segment.text for segment in segments).strip()
-            print(json.dumps({"text": text}), flush=True)
+            print(json.dumps({"text": text, "language": info.language}), flush=True)
         except Exception as ex:  # noqa: BLE001 - 呼び出し元(C#)にエラー内容をそのまま伝える
             print(json.dumps({"error": str(ex)}), flush=True)
 

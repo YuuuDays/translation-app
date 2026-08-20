@@ -31,7 +31,7 @@
             <Button x:Name="PauseButton" Content="処理を一時停止" Width="130" Height="30" IsEnabled="False" Click="PauseButton_Click"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="3" Text="文字起こし・翻訳結果:" FontWeight="Bold" Margin="0,0,0,5"/>
+        <TextBlock Grid.Row="3" Text="文字起こし・翻訳結果(自動言語検出):" FontWeight="Bold" Margin="0,0,0,5"/>
 
         <ListBox Grid.Row="4" x:Name="TranscriptList" FontSize="14">
             <ListBox.ItemTemplate>

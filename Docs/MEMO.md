@@ -133,9 +133,11 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 **入力**: なし(UI操作のみ)。「録音開始」ボタン押下時点のPC既定の再生デバイス(スピーカー/ヘッドホン出力)の音声を、WASAPIループバックでシステム全体からキャプチャする。マイク入力ではない。保存先フォルダは画面の「変更...」ボタンから選択可能(既定は `ドキュメント\TranslationApp\recordings`)。
 
-**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して英語の文字起こしを行い、得られた英語テキストをOllama(`OllamaTranslator`、既定モデル`gemma2:9b`)に渡して日本語に翻訳する。これで「聞く→文字にする→訳す」の一本の流れが完成した。
+**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して文字起こしを行う。**言語は決め打ちせず自動検出**しており(`model.transcribe()`にlanguage引数を渡さない)、検出結果(`TranscriptionResult.Language`、例:"en","ko","ja")と文字起こし結果をOllama(`OllamaTranslator`、既定モデル`gemma2:9b`)に渡して日本語に翻訳する。これで「聞く→文字にする→訳す」の一本の流れが完成した。
 
-**出力**: 画面に録音状態・検出セグメント数、そして各セグメントの英語文字起こしと日本語訳を一覧表示する。UIオーバーレイ表示(字幕のような常時最前面表示)はまだ行っていない。
+**出力**: 画面に録音状態・検出セグメント数、そして各セグメントの検出言語・文字起こし・日本語訳を一覧表示する。UIオーバーレイ表示(字幕のような常時最前面表示)はまだ行っていない。
+
+**言語を英語決め打ちにしていた問題**: 当初`language="en"`を明示していたため、韓国語などの英語以外の音声も無理やり英語として認識され、文字起こし精度が大きく落ちていた(実際に韓国語話者の音声で問題が発覚)。自動検出に変更し、`OllamaTranslator.TranslateToJapaneseAsync`も検出言語をプロンプトに埋め込む形(例:「Korean text」)に変更した。検出言語が`ja`の場合はOllamaを呼ばずそのまま返す。
 
 **faster-whisperの動かし方**: モデルの読み込みに数秒〜十数秒かかるため、毎セグメントごとにプロセスを立ち上げ直すのではなく、アプリ起動時に常駐プロセス(`tools/whisper-server/server.py`)として立ち上げ、標準入出力でWAVファイルパスと結果(JSON)をやり取りする方式にしている。モデルサイズ・デバイス(cpu/cuda)・compute_typeは`MainWindow_Loaded`内の`FasterWhisperClient.StartAsync`呼び出しで指定しており、現状はCPU向けの`small`モデルで動作検証済み。GPU(RTX 4060, VRAM 8GB)があるため、精度を上げたい場合は`large-v3`+`device: "cuda"`への切り替えが次の調整候補(cuDNN/cuBLAS関連の追加パッケージが必要になる可能性がある)。
 

@@ -155,18 +155,28 @@ public partial class MainWindow : Window
 
         Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、文字起こし中...)");
 
-        string englishText;
+        // 言語を決め打ちせず、faster-whisperの自動検出結果(sourceText/sourceLanguage)を使う。
+        // 英語決め打ちだと、韓国語など英語以外の音声も無理やり英語として認識され精度が落ちるため。
+        string sourceText;
+        string sourceLanguage = "unknown";
         var transcribed = false;
         try
         {
-            englishText = _whisper is null
-                ? "(faster-whisperが利用できません)"
-                : await _whisper.TranscribeAsync(segmentPath);
-            transcribed = true;
+            if (_whisper is null)
+            {
+                sourceText = "(faster-whisperが利用できません)";
+            }
+            else
+            {
+                var result = await _whisper.TranscribeAsync(segmentPath);
+                sourceText = result.Text;
+                sourceLanguage = result.Language;
+                transcribed = true;
+            }
         }
         catch (Exception ex)
         {
-            englishText = $"(文字起こし失敗: {ex.Message})";
+            sourceText = $"(文字起こし失敗: {ex.Message})";
         }
 
         // 文字起こしが終わればWAVファイルの役目は終わりなので削除する(失敗時は原因調査用に残す)。
@@ -188,7 +198,7 @@ public partial class MainWindow : Window
         string japaneseText;
         try
         {
-            japaneseText = await _translator.TranslateToJapaneseAsync(englishText);
+            japaneseText = await _translator.TranslateToJapaneseAsync(sourceText, sourceLanguage);
         }
         catch (Exception ex)
         {
@@ -199,7 +209,7 @@ public partial class MainWindow : Window
         {
             StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出)";
 
-            var index = TranscriptList.Items.Add($"[{segment.Number:0000}]\nEN: {englishText}\nJP: {japaneseText}");
+            var index = TranscriptList.Items.Add($"[{segment.Number:0000}] ({sourceLanguage})\nSRC: {sourceText}\nJP: {japaneseText}");
             TranscriptList.ScrollIntoView(TranscriptList.Items[index]);
         });
     }
