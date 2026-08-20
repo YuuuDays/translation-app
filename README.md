@@ -1,5 +1,7 @@
 # translation-app
 
+> 🤖 本プロジェクトはバイブコーディング(AIとの対話による開発)で作成しています。
+
 Discordなどの通話でPCのスピーカー/ヘッドホンから流れる音声を、リアルタイムで文字起こし＋日本語に翻訳するWindowsデスクトップアプリ。マイクではなく**PCの出力音声**(WASAPIループバック)を対象にする。
 
 - 音声認識(STT): [faster-whisper](https://github.com/SYSTRAN/faster-whisper)(ローカル・無料、言語自動検出)
