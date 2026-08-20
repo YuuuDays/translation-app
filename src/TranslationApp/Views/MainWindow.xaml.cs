@@ -16,6 +16,7 @@ public partial class MainWindow : Window
     private readonly SilenceSegmenter _segmenter = new();
     private readonly OllamaTranslator _translator = new();
     private FasterWhisperClient? _whisper;
+    private bool _isPaused;
 
     private string _outputDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -77,6 +78,8 @@ public partial class MainWindow : Window
     {
         _segmenter.Reset();
         TranscriptList.Items.Clear();
+        _isPaused = false;
+        PauseButton.Content = "処理を一時停止";
 
         try
         {
@@ -85,6 +88,7 @@ public partial class MainWindow : Window
             StatusText.Text = "録音中... (セグメント 0 件検出)";
             StartButton.IsEnabled = false;
             StopButton.IsEnabled = true;
+            PauseButton.IsEnabled = true;
         }
         catch (Exception ex)
         {
@@ -96,6 +100,19 @@ public partial class MainWindow : Window
     {
         _recorder.Stop();
         StopButton.IsEnabled = false;
+        PauseButton.IsEnabled = false;
+    }
+
+    // 自分の声と相手の声がDiscord等の出力側で既に混ざっている場合、録音した音声だけでは
+    // どちらの声か区別できない。そのため自動判定ではなく、自分が話す間だけ手動でこのボタンを
+    // 押して文字起こし・翻訳の対象から外せるようにしている。
+    private void PauseButton_Click(object sender, RoutedEventArgs e)
+    {
+        _isPaused = !_isPaused;
+        PauseButton.Content = _isPaused ? "処理を再開" : "処理を一時停止";
+        StatusText.Text = _isPaused
+            ? "録音中... (一時停止中: 文字起こし・翻訳をスキップ)"
+            : "録音中...";
     }
 
     private void Recorder_DataAvailable(ReadOnlySpan<byte> buffer, AudioClientBufferFlags flags, long devicePosition, long qpcPosition)
@@ -121,6 +138,12 @@ public partial class MainWindow : Window
     // 将来的には(検証目的の)ファイル書き出し自体をやめ、segment.Dataを直接渡す形に置き換える想定。
     private async void Segmenter_SegmentReady(AudioSegment segment)
     {
+        if (_isPaused)
+        {
+            // 一時停止中はこの区間を文字起こし・翻訳の対象から完全に除外する。
+            return;
+        }
+
         var segmentDir = Path.Combine(_outputDir, "segments");
         Directory.CreateDirectory(segmentDir);
         var segmentPath = Path.Combine(segmentDir, $"segment_{segment.Number:0000}_{DateTime.Now:HHmmss}.wav");

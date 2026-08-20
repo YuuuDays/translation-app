@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:TranslationApp.Views"
         mc:Ignorable="d"
-        Title="Translation App - STT Test" Height="500" Width="560">
+        Title="Translation App - STT Test" Height="500" Width="620">
     <Grid Margin="20">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
@@ -27,7 +27,8 @@
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="StartButton" Content="録音開始" Width="100" Height="30" Margin="0,0,10,0" IsEnabled="False" Click="StartButton_Click"/>
-            <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" IsEnabled="False" Click="StopButton_Click"/>
+            <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" Margin="0,0,10,0" IsEnabled="False" Click="StopButton_Click"/>
+            <Button x:Name="PauseButton" Content="処理を一時停止" Width="130" Height="30" IsEnabled="False" Click="PauseButton_Click"/>
         </StackPanel>
 
         <TextBlock Grid.Row="3" Text="文字起こし・翻訳結果:" FontWeight="Bold" Margin="0,0,0,5"/>
