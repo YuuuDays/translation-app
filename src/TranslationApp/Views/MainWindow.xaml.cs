@@ -49,8 +49,11 @@ public partial class MainWindow : Window
         {
             // faster-whisperはモデル読み込みに数秒〜十数秒かかるため、常駐プロセスとして
             // 起動しておき、録音セグメントが来るたびに使い回す(セグメントごとに立ち上げ直さない)。
-            // GPU(cuda)で動かすとCPU(int8)比で1リクエストあたり10倍以上速くなることを実測済み。
-            _whisper = await FasterWhisperClient.StartAsync(modelSize: "small", device: "cuda", computeType: "float16");
+            // GPU(cuda)の方が10倍以上速いが、VRAM 8GB環境ではOllama(gemma2:9b)と同時にGPUへ
+            // 載せるとVRAMを奪い合い翻訳が失敗することを実機で確認したため、CPUに戻して
+            // VRAMをOllama専用にしている。GPUに余裕がある環境ではdevice: "cuda"・
+            // computeType: "float16"に変更すれば文字起こしを高速化できる。
+            _whisper = await FasterWhisperClient.StartAsync(modelSize: "small", device: "cpu", computeType: "int8");
             StatusText.Text = "待機中";
             StartButton.IsEnabled = true;
         }

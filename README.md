@@ -12,8 +12,8 @@ Discordなどの通話でPCのスピーカー/ヘッドホンから流れる音�
 
 - Windows + [.NET SDK](https://dotnet.microsoft.com/) 10系
 - [Python](https://www.python.org/) 3.11以降
-- [Ollama](https://ollama.com/download)
-- (推奨)NVIDIA GPU(VRAM 8GB程度) — 文字起こしはGPU前提の設定になっており、CPUの10倍以上速い。GPUが無い場合は`FasterWhisperClient.StartAsync`の呼び出しを`device: "cpu"`・`compute_type: "int8"`に変更すれば動く(その分遅くなる)
+- [Ollama](https://ollama.com/download) — 翻訳(gemma2:9b)はGPU前提。VRAM 8GB程度のNVIDIA GPUを推奨
+- 文字起こし(faster-whisper)は既定でCPU実行。VRAMに十分余裕がある環境なら`FasterWhisperClient.StartAsync`の呼び出しを`device: "cuda"`・`compute_type: "float16"`に変更するとCPU比10倍以上速くなるが、VRAM 8GB程度だと翻訳用モデルと共存できず不安定になることを確認済み(詳細は[Docs/MEMO.md](Docs/MEMO.md))
 
 ## セットアップ(初回のみ)
 
