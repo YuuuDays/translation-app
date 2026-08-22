@@ -1,1 +1,6 @@
 faster-whisper
+
+# GPU(device: "cuda")での推論に必要。CPU(device: "cpu")のみで使う場合は不要だが、
+# 入れておいてもCPU運用の妨げにはならない。
+nvidia-cublas-cu12
+nvidia-cudnn-cu12

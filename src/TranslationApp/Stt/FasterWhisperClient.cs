@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO;
 using System.Text.Json;
 using TranslationApp.Models;
 
@@ -21,8 +22,8 @@ public sealed class FasterWhisperClient : IAsyncDisposable
 
     public static async Task<FasterWhisperClient> StartAsync(
         string modelSize = "small",
-        string device = "cpu",
-        string computeType = "int8")
+        string device = "cuda",
+        string computeType = "float16")
     {
         var pythonPath = ScriptLocator.FindWhisperServerPython();
         var scriptPath = ScriptLocator.FindWhisperServerScript();
@@ -40,6 +41,13 @@ public sealed class FasterWhisperClient : IAsyncDisposable
         startInfo.ArgumentList.Add(modelSize);
         startInfo.ArgumentList.Add(device);
         startInfo.ArgumentList.Add(computeType);
+
+        // GPU推論用のcuBLAS/cuDNN DLL(pipでvenv内にインストールされる)をPythonプロセスが
+        // 見つけられるよう、PATHの先頭に追加する。CPU運用時は対象ディレクトリが無いので何もしない。
+        foreach (var cudaDir in ScriptLocator.FindCudaLibraryDirs())
+        {
+            startInfo.EnvironmentVariables["PATH"] = cudaDir + Path.PathSeparator + startInfo.EnvironmentVariables["PATH"];
+        }
 
         var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("faster-whisperサーバープロセスを起動できませんでした。");

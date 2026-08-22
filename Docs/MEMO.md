@@ -139,7 +139,9 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 **言語を英語決め打ちにしていた問題**: 当初`language="en"`を明示していたため、韓国語などの英語以外の音声も無理やり英語として認識され、文字起こし精度が大きく落ちていた(実際に韓国語話者の音声で問題が発覚)。自動検出に変更し、`OllamaTranslator.TranslateToJapaneseAsync`も検出言語をプロンプトに埋め込む形(例:「Korean text」)に変更した。検出言語が`ja`の場合はOllamaを呼ばずそのまま返す。
 
-**faster-whisperの動かし方**: モデルの読み込みに数秒〜十数秒かかるため、毎セグメントごとにプロセスを立ち上げ直すのではなく、アプリ起動時に常駐プロセス(`tools/whisper-server/server.py`)として立ち上げ、標準入出力でWAVファイルパスと結果(JSON)をやり取りする方式にしている。モデルサイズ・デバイス(cpu/cuda)・compute_typeは`MainWindow_Loaded`内の`FasterWhisperClient.StartAsync`呼び出しで指定しており、現状はCPU向けの`small`モデルで動作検証済み。GPU(RTX 4060, VRAM 8GB)があるため、精度を上げたい場合は`large-v3`+`device: "cuda"`への切り替えが次の調整候補(cuDNN/cuBLAS関連の追加パッケージが必要になる可能性がある)。
+**faster-whisperの動かし方**: モデルの読み込みに数秒〜十数秒かかるため、毎セグメントごとにプロセスを立ち上げ直すのではなく、アプリ起動時に常駐プロセス(`tools/whisper-server/server.py`)として立ち上げ、標準入出力でWAVファイルパスと結果(JSON)をやり取りする方式にしている。モデルサイズ・デバイス(cpu/cuda)・compute_typeは`MainWindow_Loaded`内の`FasterWhisperClient.StartAsync`呼び出しで指定する。
+
+**GPU(cuda)への切り替えで文字起こしを大幅高速化**: 当初CPU(`small`・int8)で動かしていたが、1セグメントあたり約3.4〜3.8秒かかっており、Ollama翻訳(約0.7〜1秒)より遥かに遅いボトルネックだった。`device: "cuda"`・`compute_type: "float16"`に切り替えたところ、同じセグメントが初回0.94秒、2回目以降0.26秒まで短縮(実測、RTX 4060/VRAM 8GB)。ただしfaster-whisper(ctranslate2)のCUDA推論には`cublas64_12.dll`/`cudnn64_9.dll`が必要で、システムのCUDA Toolkitではなく`nvidia-cublas-cu12`/`nvidia-cudnn-cu12`をpipでvenvに入れる形にした(`requirements.txt`に追加済み)。これらのDLLはvenv内(`site-packages/nvidia/{cublas,cudnn}/bin`)に入るだけでPATHには通らないため、`ScriptLocator.FindCudaLibraryDirs()`で探して`FasterWhisperClient.StartAsync`がPythonプロセス起動時のPATH環境変数に追加している。CPU運用に戻したい場合は`device: "cpu"`・`compute_type: "int8"`に戻せばよい(CUDAパッケージが無くてもCPU動作には影響しない)。
 
 **Ollamaの動かし方**: Ollamaは常駐サービスとして`http://localhost:11434`でHTTP APIを待ち受けているので、`OllamaTranslator`はそこへ`/api/generate`をPOSTするだけ(faster-whisperのようなプロセス管理は不要)。プロンプトで「日本語のみ・中国語厳禁・翻訳文だけを出力する」よう指示し、`temperature`も0.1まで下げて出力のブレを抑えている。
 

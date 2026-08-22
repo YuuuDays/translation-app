@@ -29,6 +29,26 @@ internal static class ScriptLocator
         return File.Exists(venvPython) ? venvPython : "python";
     }
 
+    /// <summary>
+    /// GPU推論(device: "cuda")に必要なcuBLAS/cuDNNのDLLは、pip(nvidia-cublas-cu12/nvidia-cudnn-cu12)で
+    /// venv内にインストールされるだけでシステムのPATHには通っていないため、そのbinフォルダを探して返す。
+    /// 見つからない場合(未インストール/CPU運用)は空を返す。
+    /// </summary>
+    public static IEnumerable<string> FindCudaLibraryDirs()
+    {
+        var repoRoot = FindRepoRoot();
+        var sitePackages = Path.Combine(repoRoot, "tools", "whisper-server", ".venv", "Lib", "site-packages", "nvidia");
+
+        foreach (var subDir in new[] { "cublas", "cudnn" })
+        {
+            var binDir = Path.Combine(sitePackages, subDir, "bin");
+            if (Directory.Exists(binDir))
+            {
+                yield return binDir;
+            }
+        }
+    }
+
     private static string FindRepoRoot()
     {
         var dir = new DirectoryInfo(AppContext.BaseDirectory);
