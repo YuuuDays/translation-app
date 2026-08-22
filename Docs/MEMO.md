@@ -133,11 +133,16 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 **入力**: なし(UI操作のみ)。「録音開始」ボタン押下時点のPC既定の再生デバイス(スピーカー/ヘッドホン出力)の音声を、WASAPIループバックでシステム全体からキャプチャする。マイク入力ではない。保存先フォルダは画面の「変更...」ボタンから選択可能(既定は `ドキュメント\TranslationApp\recordings`)。
 
-**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して文字起こしを行う。**言語は決め打ちせず自動検出**しており(`model.transcribe()`にlanguage引数を渡さない)、検出結果(`TranscriptionResult.Language`、例:"en","ko","ja")と文字起こし結果をOllama(`OllamaTranslator`、既定モデル`gemma2:9b`)に渡して日本語に翻訳する。これで「聞く→文字にする→訳す」の一本の流れが完成した。
+**処理**: 録音した音声を1本の長いファイルにはせず、音量ベースの簡易VAD(`SilenceSegmenter`)で無音区間ごとに発話単位に区切る。区切りが来るたびに `保存先フォルダ\segments\segment_0001_HHmmss.wav` として書き出し、そのファイルをfaster-whisper(`FasterWhisperClient`、モデルは既定で`small`・CPU・int8)に渡して文字起こしを行う。検出結果(`TranscriptionResult.Language`、例:"en","ko","ja")と文字起こし結果をOllama(`OllamaTranslator`、既定モデル`gemma2:9b`)に渡して日本語に翻訳する。これで「聞く→文字にする→訳す」の一本の流れが完成した。
 
 **出力**: 画面に録音状態・検出セグメント数、そして各セグメントの検出言語・文字起こし・日本語訳を一覧表示する。UIオーバーレイ表示(字幕のような常時最前面表示)はまだ行っていない。
 
-**言語を英語決め打ちにしていた問題**: 当初`language="en"`を明示していたため、韓国語などの英語以外の音声も無理やり英語として認識され、文字起こし精度が大きく落ちていた(実際に韓国語話者の音声で問題が発覚)。自動検出に変更し、`OllamaTranslator.TranslateToJapaneseAsync`も検出言語をプロンプトに埋め込む形(例:「Korean text」)に変更した。検出言語が`ja`の場合はOllamaを呼ばずそのまま返す。
+**言語を英語決め打ちにしていた問題→自動検出→手動で言語を固定できる選択肢を追加**: 当初`language="en"`を明示していたため、韓国語などの英語以外の音声も無理やり英語として認識され、文字起こし精度が大きく落ちていた(実際に韓国語話者の音声で問題が発覚)。自動検出に変更した後、さらに「短いセグメントだと自動検出そのものが不安定なことがある」という声を受け、画面に「音声の言語」ドロップダウン(自動検出/英語/韓国語/日本語)を追加し、話者の言語が分かっている場合は決め打ちできるようにした。
+
+- UI: `MainWindow.xaml`の`SourceLanguageCombo`で選択→`SourceLanguageCombo_SelectionChanged`で`_forcedLanguage`フィールドに保存(音声キャプチャ用スレッドからWPFのUI要素を直接読めないため、フィールド経由で受け渡す)
+- C#→Python: `FasterWhisperClient.TranscribeAsync(path, language)`が`{"path": "...", "language": "ko"}`のようなJSON1行をstdin経由でサーバーに送る(以前は単なるファイルパスの文字列だった)
+- Python側: `server.py`が`language`が指定されていれば`model.transcribe(wav_path, language=language)`で決め打ち、無し(null)なら従来通り自動検出
+- `OllamaTranslator.TranslateToJapaneseAsync`は引き続き`TranscriptionResult.Language`(決め打ち時はその言語、自動検出時は検出結果)をプロンプトに埋め込む。検出/指定言語が`ja`の場合はOllamaを呼ばずそのまま返す。
 
 **faster-whisperの動かし方**: モデルの読み込みに数秒〜十数秒かかるため、毎セグメントごとにプロセスを立ち上げ直すのではなく、アプリ起動時に常駐プロセス(`tools/whisper-server/server.py`)として立ち上げ、標準入出力でWAVファイルパスと結果(JSON)をやり取りする方式にしている。モデルサイズ・デバイス(cpu/cuda)・compute_typeは`MainWindow_Loaded`内の`FasterWhisperClient.StartAsync`呼び出しで指定する。
 

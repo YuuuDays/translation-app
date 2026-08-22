@@ -12,6 +12,7 @@
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
@@ -25,15 +26,25 @@
             </StackPanel>
         </StackPanel>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" Margin="0,0,0,10">
+        <StackPanel Grid.Row="2" Margin="0,0,0,10">
+            <TextBlock Text="音声の言語:" FontWeight="Bold"/>
+            <ComboBox x:Name="SourceLanguageCombo" Width="200" HorizontalAlignment="Left" SelectedIndex="0" SelectionChanged="SourceLanguageCombo_SelectionChanged">
+                <ComboBoxItem Content="自動検出" Tag=""/>
+                <ComboBoxItem Content="英語 (en)" Tag="en"/>
+                <ComboBoxItem Content="韓国語 (ko)" Tag="ko"/>
+                <ComboBoxItem Content="日本語 (ja)" Tag="ja"/>
+            </ComboBox>
+        </StackPanel>
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="0,0,0,10">
             <Button x:Name="StartButton" Content="録音開始" Width="100" Height="30" Margin="0,0,10,0" IsEnabled="False" Click="StartButton_Click"/>
             <Button x:Name="StopButton" Content="録音停止" Width="100" Height="30" Margin="0,0,10,0" IsEnabled="False" Click="StopButton_Click"/>
             <Button x:Name="PauseButton" Content="処理を一時停止" Width="130" Height="30" IsEnabled="False" Click="PauseButton_Click"/>
         </StackPanel>
 
-        <TextBlock Grid.Row="3" Text="文字起こし・翻訳結果(自動言語検出):" FontWeight="Bold" Margin="0,0,0,5"/>
+        <TextBlock Grid.Row="4" Text="文字起こし・翻訳結果:" FontWeight="Bold" Margin="0,0,0,5"/>
 
-        <ListBox Grid.Row="4" x:Name="TranscriptList" FontSize="14">
+        <ListBox Grid.Row="5" x:Name="TranscriptList" FontSize="14">
             <ListBox.ItemTemplate>
                 <DataTemplate>
                     <TextBlock Text="{Binding}" TextWrapping="Wrap" Margin="0,2,0,10"/>

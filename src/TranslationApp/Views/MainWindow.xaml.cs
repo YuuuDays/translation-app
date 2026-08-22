@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
 using NAudio.CoreAudioApi;
 using NAudio.Wave;
@@ -17,6 +18,10 @@ public partial class MainWindow : Window
     private readonly OllamaTranslator _translator = new();
     private FasterWhisperClient? _whisper;
     private bool _isPaused;
+
+    // 音声キャプチャ用スレッドからも参照するため、ComboBoxを直接読まずこのフィールドに保持する
+    // (WPFのUI要素は生成したスレッド以外から触れない)。nullなら自動言語検出。
+    private string? _forcedLanguage;
 
     private string _outputDir = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -61,6 +66,12 @@ public partial class MainWindow : Window
         {
             StatusText.Text = $"faster-whisperの起動に失敗しました: {ex.Message}";
         }
+    }
+
+    private void SourceLanguageCombo_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var tag = (SourceLanguageCombo.SelectedItem as ComboBoxItem)?.Tag as string;
+        _forcedLanguage = string.IsNullOrEmpty(tag) ? null : tag;
     }
 
     private void BrowseButton_Click(object sender, RoutedEventArgs e)
@@ -159,8 +170,10 @@ public partial class MainWindow : Window
 
         Dispatcher.Invoke(() => StatusText.Text = $"録音中... (セグメント {segment.Number} 件検出、文字起こし中...)");
 
-        // 言語を決め打ちせず、faster-whisperの自動検出結果(sourceText/sourceLanguage)を使う。
-        // 英語決め打ちだと、韓国語など英語以外の音声も無理やり英語として認識され精度が落ちるため。
+        // SourceLanguageComboで特定の言語が選ばれていればそれで決め打ち、
+        // 「自動検出」のままならfaster-whisperの自動言語検出に任せる。
+        // 短いセグメントだと自動検出が不安定なことがあるため、話者の言語が分かっている場合は
+        // 決め打ちした方が精度が上がる。
         string sourceText;
         string sourceLanguage = "unknown";
         var transcribed = false;
@@ -172,7 +185,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                var result = await _whisper.TranscribeAsync(segmentPath);
+                var result = await _whisper.TranscribeAsync(segmentPath, _forcedLanguage);
                 sourceText = result.Text;
                 sourceLanguage = result.Language;
                 transcribed = true;

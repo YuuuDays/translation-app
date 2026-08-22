@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using TranslationApp.Models;
 
 namespace TranslationApp.Stt;
@@ -64,14 +65,19 @@ public sealed class FasterWhisperClient : IAsyncDisposable
         return new FasterWhisperClient(process);
     }
 
-    public async Task<TranscriptionResult> TranscribeAsync(string wavFilePath)
+    /// <summary>
+    /// language(ISO 639-1、例:"ko")を指定すると、その言語だと決め打ちして認識する。
+    /// nullまたは空文字なら自動言語検出(既定)。短いセグメントで自動検出が不安定な場合に有効。
+    /// </summary>
+    public async Task<TranscriptionResult> TranscribeAsync(string wavFilePath, string? language = null)
     {
         // Pythonプロセスは1リクエストずつ順番に処理する常駐サーバーなので、
         // 複数セグメントが同時に来ても呼び出しをここで直列化する。
         await _requestLock.WaitAsync();
         try
         {
-            await _process.StandardInput.WriteLineAsync(wavFilePath);
+            var requestJson = JsonSerializer.Serialize(new TranscribeRequest(wavFilePath, language));
+            await _process.StandardInput.WriteLineAsync(requestJson);
             await _process.StandardInput.FlushAsync();
 
             var resultLine = await _process.StandardOutput.ReadLineAsync()
@@ -84,8 +90,8 @@ public sealed class FasterWhisperClient : IAsyncDisposable
             }
 
             var text = document.RootElement.GetProperty("text").GetString() ?? string.Empty;
-            var language = document.RootElement.GetProperty("language").GetString() ?? "unknown";
-            return new TranscriptionResult(text, language);
+            var detectedLanguage = document.RootElement.GetProperty("language").GetString() ?? "unknown";
+            return new TranscriptionResult(text, detectedLanguage);
         }
         finally
         {
@@ -112,4 +118,8 @@ public sealed class FasterWhisperClient : IAsyncDisposable
             _process.Dispose();
         }
     }
+
+    private sealed record TranscribeRequest(
+        [property: JsonPropertyName("path")] string Path,
+        [property: JsonPropertyName("language")] string? Language);
 }
