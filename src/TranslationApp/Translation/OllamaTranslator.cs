@@ -16,6 +16,13 @@ public sealed class OllamaTranslator : IDisposable
     // 「創造性より忠実さ」を優先してほぼ決定的な出力になるよう下げている。
     private const double Temperature = 0.1;
 
+    // Ollamaの既定コンテキスト長(4096)はKVキャッシュ用にVRAMを大きく消費する。
+    // 翻訳プロンプトは(ルール文込みでも)せいぜい数百トークンなので、必要十分な値まで絞って
+    // VRAMに余裕を持たせる(faster-whisperもGPUを使っているため、VRAM 8GB環境では
+    // 4096のままだとOllama側のモデルがCPUに一部オフロードされ、極端に遅くなったり
+    // タイムアウトで失敗したりすることを実機で確認した)。
+    private const int ContextLength = 1024;
+
     // faster-whisperが返すISO 639-1言語コードを、プロンプトで使う英語の言語名に変換する。
     // 一覧に無い言語コードはそのままプロンプトに埋め込む(モデルが認識できる可能性が高いため)。
     private static readonly Dictionary<string, string> LanguageNames = new()
@@ -64,7 +71,7 @@ public sealed class OllamaTranslator : IDisposable
             "- If the input is a short or ambiguous fragment, translate it as naturally as possible without adding meaning that isn't there.\n\n" +
             $"{languageName}: {sourceText}\nJapanese:";
 
-        var request = new OllamaGenerateRequest(_model, prompt, Stream: false, new OllamaOptions(Temperature));
+        var request = new OllamaGenerateRequest(_model, prompt, Stream: false, new OllamaOptions(Temperature, ContextLength));
         var requestJson = JsonSerializer.Serialize(request);
         using var content = new StringContent(requestJson, Encoding.UTF8, "application/json");
 
@@ -86,7 +93,8 @@ public sealed class OllamaTranslator : IDisposable
         [property: JsonPropertyName("options")] OllamaOptions Options);
 
     private sealed record OllamaOptions(
-        [property: JsonPropertyName("temperature")] double Temperature);
+        [property: JsonPropertyName("temperature")] double Temperature,
+        [property: JsonPropertyName("num_ctx")] int NumCtx);
 
     private sealed record OllamaGenerateResponse(
         [property: JsonPropertyName("response")] string? Response);

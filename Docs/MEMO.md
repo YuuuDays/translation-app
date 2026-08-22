@@ -145,6 +145,8 @@ dotnet run --project src/TranslationApp/TranslationApp.csproj
 
 **Ollamaの動かし方**: Ollamaは常駐サービスとして`http://localhost:11434`でHTTP APIを待ち受けているので、`OllamaTranslator`はそこへ`/api/generate`をPOSTするだけ(faster-whisperのようなプロセス管理は不要)。プロンプトで「日本語のみ・中国語厳禁・翻訳文だけを出力する」よう指示し、`temperature`も0.1まで下げて出力のブレを抑えている。
 
+**しばらく使うと「翻訳失敗」が出る問題(VRAM不足)**: faster-whisperをGPU化した後、gemma2:9b(既定コンテキスト長4096)と同時にGPUへ載せるとVRAM(8GB)がほぼ埋まり(`nvidia-smi`実測で空き138MB)、`ollama ps`で見るとgemma2:9bが「20%/80% CPU/GPU」のように一部CPUへ追い出されていた。これにより翻訳が極端に遅くなったり失敗したりする。翻訳プロンプトは短いので4096トークンものコンテキストは不要と判断し、`OllamaOptions.NumCtx`を1024に絞ったところ、モデルサイズが7.1GB→5.7GBに減り「100% GPU」に収まるようになった(実測)。ただし、この環境はブラウザやDiscord、CLIP STUDIO PAINTなど他の常駐アプリも同じGPUのVRAMを使っており、修正後でも空きは100〜1000MB程度とかなり厳しい。**それでも「翻訳失敗」が頻発する場合の追加対策**: ①翻訳アプリ使用中はブラウザ等GPUを使う他アプリを閉じる、②`OllamaTranslator`のモデルをより軽量なもの(例:`gemma2:2b`)に変更する、③`FasterWhisperClient`を`device: "cpu"`に戻してVRAMをOllama専用にする、のいずれか。
+
 モデルは最初`qwen2.5:7b`を使っていたが、"I know."のような短い定型フレーズで中国語(`我知道。`)が混ざる問題が実測で確認されたため、`gemma2:9b`に切り替えた(同じテストフレーズで中国語混入なし、自然な日本語を確認)。`OllamaTranslator`のコンストラクタ引数でモデルは差し替え可能。
 
 **常時起動でもメモリが増え続けない設計**: 無音が600ms続くか、無音が来なくても1セグメントが15秒を超えたら強制的に区切ってバッファを空にする(`SilenceSegmenter`内の`SilenceCutMs`/`MaxSegmentMs`)。これにより、録音時間がどれだけ長くてもメモリ使用量は「直近1発話分」で頭打ちになる。
